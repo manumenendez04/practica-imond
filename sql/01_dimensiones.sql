@@ -62,3 +62,111 @@ LEFT JOIN raw.product_category AS f ON f.category_id = c.parent_id;    -- famili
 --       CAST(strftime(fecha, '%Y%m%d') AS INTEGER)
 --   * Si algo puede venir vacío (ej. NPS anónimos, sin cliente), podés agregar
 --     una fila "Desconocido" con clave -1 y usar COALESCE(clave, -1) en los hechos.
+
+
+-- Calendario
+CREATE TABLE dim_date (
+    date_key   INTEGER PRIMARY KEY,
+    fecha      DATE NOT NULL,
+    anio       INTEGER NOT NULL,
+    mes        INTEGER NOT NULL,
+    anio_mes   VARCHAR NOT NULL,
+    nombre_mes VARCHAR NOT NULL,
+    dia        INTEGER NOT NULL,
+    dia_semana VARCHAR NOT NULL
+);
+
+INSERT INTO dim_date
+SELECT
+    CAST(strftime(fecha, '%Y%m%d') AS INTEGER),
+    fecha,
+    year(fecha),
+    month(fecha),
+    strftime(fecha, '%Y-%m'),
+    monthname(fecha),
+    day(fecha),
+    dayname(fecha)
+FROM (
+    SELECT CAST(range AS DATE) AS fecha
+    FROM range(DATE '2024-01-01', DATE '2025-10-01', INTERVAL 1 DAY)
+) AS d;
+
+
+
+-- dim_channel: canal de venta 
+CREATE TABLE dim_channel (
+    channel_key INTEGER PRIMARY KEY,
+    channel_id  INTEGER NOT NULL,
+    code        VARCHAR NOT NULL,
+    name        VARCHAR NOT NULL
+);
+
+INSERT INTO dim_channel
+SELECT
+    ROW_NUMBER() OVER (ORDER BY channel_id) AS channel_key,
+    channel_id,
+    code,
+    name
+FROM raw.channel;
+
+
+-- dim_store: tienda física (con fila especial -1 para pedidos online)
+CREATE TABLE dim_store (
+    store_key INTEGER PRIMARY KEY,
+    store_id  INTEGER NOT NULL,
+    name      VARCHAR NOT NULL
+);
+
+INSERT INTO dim_store VALUES (-1, -1, 'Sin tienda (online)');
+
+INSERT INTO dim_store
+SELECT
+    ROW_NUMBER() OVER (ORDER BY store_id) AS store_key,
+    store_id,
+    name
+FROM raw.store;
+
+
+-- dim_location: dónde (dirección + provincia), con fila especial -1
+CREATE TABLE dim_location (
+    location_key  INTEGER PRIMARY KEY,
+    address_id    INTEGER NOT NULL,
+    city          VARCHAR,
+    province      VARCHAR,
+    province_code VARCHAR,
+    postal_code   VARCHAR
+);
+
+INSERT INTO dim_location VALUES (-1, -1, NULL, 'Sin ubicación', NULL, NULL);
+
+INSERT INTO dim_location
+SELECT
+    ROW_NUMBER() OVER (ORDER BY a.address_id) AS location_key,
+    a.address_id,
+    a.city,
+    p.name AS province,
+    p.code AS province_code,
+    a.postal_code
+FROM raw.address AS a
+LEFT JOIN raw.province AS p ON p.province_id = a.province_id;
+
+
+-- dim_customer: cliente (es dimensión, no hecho), con fila especial -1
+CREATE TABLE dim_customer (
+    customer_key INTEGER PRIMARY KEY,
+    customer_id  INTEGER NOT NULL,
+    first_name   VARCHAR,
+    last_name    VARCHAR,
+    status       VARCHAR
+);
+
+INSERT INTO dim_customer VALUES (-1, -1, 'Desconocido', NULL, NULL);
+
+INSERT INTO dim_customer
+SELECT
+    ROW_NUMBER() OVER (ORDER BY customer_id) AS customer_key,
+    customer_id,
+    first_name,
+    last_name,
+    status
+FROM raw.customer;
