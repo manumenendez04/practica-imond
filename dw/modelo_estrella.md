@@ -104,4 +104,46 @@ erDiagram
         VARCHAR device
         BIGINT duration_seconds
     }
+    kpi_nps {
+        VARCHAR anio_mes
+        VARCHAR canal
+        BIGINT respuestas
+        BIGINT promotores
+        BIGINT pasivos
+        BIGINT detractores
+        DOUBLE nps
+    }
+    kpi_ranking_productos {
+        VARCHAR anio_mes
+        VARCHAR canal
+        VARCHAR producto
+        VARCHAR categoria
+        HUGEINT unidades
+        DECIMAL ventas
+        BIGINT ranking
+    }
+    kpi_usuarios_activos_diario {
+        DATE fecha
+        VARCHAR anio_mes
+        BIGINT usuarios_activos
+        BIGINT sesiones
+        BIGINT sesiones_anonimas
+    }
+    kpi_usuarios_activos_mensual {
+        VARCHAR anio_mes
+        BIGINT usuarios_activos
+        BIGINT sesiones
+        BIGINT sesiones_anonimas
+    }
+    kpi_ventas {
+        DATE fecha
+        VARCHAR anio_mes
+        VARCHAR canal
+        VARCHAR provincia
+        BIGINT pedidos
+        DECIMAL ventas_sin_iva_ni_envio
+        DECIMAL ventas_con_iva_y_envio
+        DOUBLE ticket_promedio_sin_iva
+        DOUBLE ticket_promedio_con_iva
+    }
 ```
