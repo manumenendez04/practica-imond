@@ -16,8 +16,6 @@ FROM dim_product
 ORDER BY product_key;
 
 
--- TU TURNO: agregá acá tus consultas.
-
 
 
 -- KPI: Ventas y Ticket Promedio, por dia, canal y provincia
@@ -37,7 +35,8 @@ JOIN dim_date     AS d  ON d.date_key     = f.date_key
 JOIN dim_channel  AS ch ON ch.channel_key = f.channel_key
 JOIN dim_location AS l  ON l.location_key = f.location_key
 WHERE f.status IN ('PAID', 'FULFILLED')
-GROUP BY d.fecha, d.anio_mes, ch.name, l.province;
+GROUP BY d.fecha, d.anio_mes, ch.name, l.province
+ORDER BY d.fecha, ch.name, l.province;
 
 
 -- KPI: Usuarios Activos por dia
@@ -46,23 +45,29 @@ SELECT
     d.fecha,
     d.anio_mes,
     COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END) AS usuarios_activos,
-    COUNT(*)                                       AS sesiones,
-    COUNT(*) FILTER (WHERE w.customer_key = -1)    AS sesiones_anonimas
-FROM fact_web_session AS w
-JOIN dim_date AS d ON d.date_key = w.date_key
-GROUP BY d.fecha, d.anio_mes;
+    COUNT(*) FILTER (WHERE w.customer_key = -1)                            AS sesiones_anonimas,
+    COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END)
+      + COUNT(*) FILTER (WHERE w.customer_key = -1)                        AS usuarios_activos_con_anonimos,
+    COUNT(*)                                                               AS sesiones
+FROM fact_web_session w
+JOIN dim_date d ON d.date_key = w.date_key
+GROUP BY d.fecha, d.anio_mes
+ORDER BY d.fecha;
+
 
 -- KPI: Usuarios Activos por mes
 CREATE TABLE kpi_usuarios_activos_mensual AS
 SELECT
     d.anio_mes,
     COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END) AS usuarios_activos,
-    COUNT(*)                                       AS sesiones,
-    COUNT(*) FILTER (WHERE w.customer_key = -1)    AS sesiones_anonimas
-FROM fact_web_session AS w
-JOIN dim_date AS d ON d.date_key = w.date_key
-GROUP BY d.anio_mes;
-
+    COUNT(*) FILTER (WHERE w.customer_key = -1)                            AS sesiones_anonimas,
+    COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END)
+      + COUNT(*) FILTER (WHERE w.customer_key = -1)                        AS usuarios_activos_con_anonimos,
+    COUNT(*)                                                               AS sesiones
+FROM fact_web_session w
+JOIN dim_date d ON d.date_key = w.date_key
+GROUP BY d.anio_mes
+ORDER BY d.anio_mes;
 
 
 -- KPI: NPS por mes y canal
@@ -81,9 +86,8 @@ SELECT
 FROM fact_nps_response AS n
 JOIN dim_date    AS d  ON d.date_key     = n.date_key
 JOIN dim_channel AS ch ON ch.channel_key = n.channel_key
-GROUP BY d.anio_mes, ch.name;
-
-
+GROUP BY d.anio_mes, ch.name
+ORDER BY d.anio_mes, ch.name;
 
 
 -- KPI: Ranking mensual de productos, por canal
@@ -104,4 +108,5 @@ JOIN dim_date    AS d  ON d.date_key     = i.date_key
 JOIN dim_product AS p  ON p.product_key  = i.product_key
 JOIN dim_channel AS ch ON ch.channel_key = i.channel_key
 WHERE i.status IN ('PAID', 'FULFILLED')
-GROUP BY d.anio_mes, ch.name, p.name, p.category;
+GROUP BY d.anio_mes, ch.name, p.name, p.category
+ORDER BY d.anio_mes, ch.name, ranking, p.name;

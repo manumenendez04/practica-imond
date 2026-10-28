@@ -126,14 +126,16 @@ erDiagram
         DATE fecha
         VARCHAR anio_mes
         BIGINT usuarios_activos
-        BIGINT sesiones
         BIGINT sesiones_anonimas
+        BIGINT usuarios_activos_con_anonimos
+        BIGINT sesiones
     }
     kpi_usuarios_activos_mensual {
         VARCHAR anio_mes
         BIGINT usuarios_activos
-        BIGINT sesiones
         BIGINT sesiones_anonimas
+        BIGINT usuarios_activos_con_anonimos
+        BIGINT sesiones
     }
     kpi_ventas {
         DATE fecha
