@@ -110,3 +110,51 @@ JOIN dim_channel AS ch ON ch.channel_key = i.channel_key
 WHERE i.status IN ('PAID', 'FULFILLED')
 GROUP BY d.anio_mes, ch.name, p.name, p.category
 ORDER BY d.anio_mes, ch.name, ranking, p.name;
+
+
+-- KPI: Ventas y Ticket Promedio, por mes y canal
+CREATE TABLE kpi_ventas_mensual AS
+SELECT
+    d.anio_mes,
+    ch.name     AS canal,
+    COUNT(*)    AS pedidos,
+    SUM(f.subtotal)     AS ventas_sin_iva_ni_envio,
+    SUM(f.total_amount) AS ventas_con_iva_y_envio,
+    ROUND(SUM(f.subtotal)     / COUNT(*), 2) AS ticket_promedio_sin_iva,
+    ROUND(SUM(f.total_amount) / COUNT(*), 2) AS ticket_promedio_con_iva
+FROM fact_sales_order AS f
+JOIN dim_date    AS d  ON d.date_key     = f.date_key
+JOIN dim_channel AS ch ON ch.channel_key = f.channel_key
+WHERE f.status IN ('PAID', 'FULFILLED')
+GROUP BY d.anio_mes, ch.name
+ORDER BY d.anio_mes, ch.name;
+
+
+-- KPI: Ventas y Ticket Promedio, por provincia (todo el período)
+CREATE TABLE kpi_ventas_provincia AS
+SELECT
+    l.province  AS provincia,
+    COUNT(*)    AS pedidos,
+    SUM(f.subtotal)     AS ventas_sin_iva_ni_envio,
+    SUM(f.total_amount) AS ventas_con_iva_y_envio,
+    ROUND(SUM(f.subtotal)     / COUNT(*), 2) AS ticket_promedio_sin_iva,
+    ROUND(SUM(f.total_amount) / COUNT(*), 2) AS ticket_promedio_con_iva
+FROM fact_sales_order AS f
+JOIN dim_location AS l ON l.location_key = f.location_key
+WHERE f.status IN ('PAID', 'FULFILLED')
+GROUP BY l.province
+ORDER BY l.province;
+
+
+
+
+-- KPI: Ventas y Ticket Promedio, total general
+CREATE TABLE kpi_ventas_total AS
+SELECT
+    COUNT(*)    AS pedidos,
+    SUM(f.subtotal)     AS ventas_sin_iva_ni_envio,
+    SUM(f.total_amount) AS ventas_con_iva_y_envio,
+    ROUND(SUM(f.subtotal)     / COUNT(*), 2) AS ticket_promedio_sin_iva,
+    ROUND(SUM(f.total_amount) / COUNT(*), 2) AS ticket_promedio_con_iva
+FROM fact_sales_order AS f
+WHERE f.status IN ('PAID', 'FULFILLED');

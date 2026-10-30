@@ -148,4 +148,28 @@ erDiagram
         DOUBLE ticket_promedio_sin_iva
         DOUBLE ticket_promedio_con_iva
     }
+    kpi_ventas_mensual {
+        VARCHAR anio_mes
+        VARCHAR canal
+        BIGINT pedidos
+        DECIMAL ventas_sin_iva_ni_envio
+        DECIMAL ventas_con_iva_y_envio
+        DOUBLE ticket_promedio_sin_iva
+        DOUBLE ticket_promedio_con_iva
+    }
+    kpi_ventas_provincia {
+        VARCHAR provincia
+        BIGINT pedidos
+        DECIMAL ventas_sin_iva_ni_envio
+        DECIMAL ventas_con_iva_y_envio
+        DOUBLE ticket_promedio_sin_iva
+        DOUBLE ticket_promedio_con_iva
+    }
+    kpi_ventas_total {
+        BIGINT pedidos
+        DECIMAL ventas_sin_iva_ni_envio
+        DECIMAL ventas_con_iva_y_envio
+        DOUBLE ticket_promedio_sin_iva
+        DOUBLE ticket_promedio_con_iva
+    }
 ```

@@ -1,0 +1,5 @@
+provincia,pedidos,ventas_sin_iva_ni_envio,ventas_con_iva_y_envio,ticket_promedio_sin_iva,ticket_promedio_con_iva
+Buenos Aires,4098,115775250.00,142699252.50,28251.65,34821.68
+Córdoba,2601,72581550.00,89535175.50,27905.25,34423.37
+Mendoza,1781,50648100.00,62628801.00,28438.01,35164.96
+Santa Fe,2518,70886700.00,87547407.00,28151.99,34768.63
