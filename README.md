@@ -122,6 +122,8 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 | `kpi_usuarios_activos_mensual` | Igual, calculado sobre el mes completo | mes | 21 |
 | `kpi_nps` | NPS = (% promotores − % detractores) × 100 | mes y canal | 42 |
 | `kpi_ranking_productos` | Unidades y ventas (`line_total`) por producto con `RANK()` | mes y canal | 84 |
+| `kpi_mensual_canal` | Une `kpi_ventas_mensual` con `kpi_nps`: ventas, ticket promedio y NPS en una sola tabla, para que el tablero no tenga que combinar datos | mes y canal | 42 |
+| `kpi_productos_provincia` | Unidades y ventas (`line_total`) por producto, con su categoría. Solo PAID y FULFILLED | mes, canal, provincia y producto | 336 |
 
 ## 6. Diccionario de datos
 
@@ -167,6 +169,8 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 | `kpi_usuarios_activos_mensual` | `anio_mes`, `usuarios_activos`, `sesiones_anonimas`, `usuarios_activos_con_anonimos`, `sesiones` |
 | `kpi_nps` | `anio_mes`, `canal`, `respuestas`, `promotores`, `pasivos`, `detractores`, `nps` |
 | `kpi_ranking_productos` | `anio_mes`, `canal`, `producto`, `categoria`, `unidades`, `ventas`, `ranking` |
+| `kpi_mensual_canal` | `anio_mes`, `canal`, `pedidos`, `ventas_sin_iva_ni_envio`, `ventas_con_iva_y_envio`, `ticket_promedio_sin_iva`, `ticket_promedio_con_iva`, `respuestas`, `promotores`, `pasivos`, `detractores`, `nps` |
+| `kpi_productos_provincia` | `anio_mes`, `canal`, `provincia`, `producto`, `categoria`, `unidades`, `ventas` |
 
 ### Tablas de origen (`raw/`)
 
@@ -188,4 +192,11 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 
 ## 7. Tablero
 
-*Se completa al entregar el tablero (herramienta, enlace y captura).*
+ El tablero está hecho en **Looker Studio** y se alimenta de los CSV de `dw/`: no calcula  ningún KPI, solo los muestra. Cada gráfico lee una tabla KPI ya calculada en SQL.
+ 
+ Nota: para ver el tablero se requiere una cuenta de Google con la sesión iniciada.
+
+ Enlace al tablero: https://datastudio.google.com/reporting/23f961c9-28ad-49e0-81b3-94bb45f54caf
+ 
+
+![Captura del tablero](assets/tablero.png)

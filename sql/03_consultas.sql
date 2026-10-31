@@ -158,3 +158,48 @@ SELECT
     ROUND(SUM(f.total_amount) / COUNT(*), 2) AS ticket_promedio_con_iva
 FROM fact_sales_order AS f
 WHERE f.status IN ('PAID', 'FULFILLED');
+
+
+
+
+-- KPI: Ventas, Ticket Promedio y NPS, por mes y canal (una sola tabla para el tablero)
+CREATE TABLE kpi_mensual_canal AS
+SELECT
+    v.anio_mes,
+    v.canal,
+    v.pedidos,
+    v.ventas_sin_iva_ni_envio,
+    v.ventas_con_iva_y_envio,
+    v.ticket_promedio_sin_iva,
+    v.ticket_promedio_con_iva,
+    n.respuestas,
+    n.promotores,
+    n.pasivos,
+    n.detractores,
+    n.nps
+FROM kpi_ventas_mensual AS v
+LEFT JOIN kpi_nps       AS n ON n.anio_mes = v.anio_mes AND n.canal = v.canal
+ORDER BY v.anio_mes, v.canal;
+
+
+
+
+-- KPI: Unidades y Ventas por producto, mes, canal y provincia
+CREATE TABLE kpi_productos_provincia AS
+SELECT
+    d.anio_mes,
+    ch.name     AS canal,
+    l.province  AS provincia,
+    p.name      AS producto,
+    p.category  AS categoria,
+    SUM(i.quantity)   AS unidades,
+    SUM(i.line_total) AS ventas
+FROM fact_sales_order_item AS i
+JOIN fact_sales_order AS f  ON f.order_id     = i.order_id
+JOIN dim_date         AS d  ON d.date_key     = i.date_key
+JOIN dim_channel      AS ch ON ch.channel_key = i.channel_key
+JOIN dim_product      AS p  ON p.product_key  = i.product_key
+JOIN dim_location     AS l  ON l.location_key = f.location_key
+WHERE i.status IN ('PAID', 'FULFILLED')
+GROUP BY d.anio_mes, ch.name, l.province, p.name, p.category
+ORDER BY d.anio_mes, ch.name, l.province, p.name;

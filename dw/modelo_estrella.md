@@ -104,6 +104,20 @@ erDiagram
         VARCHAR device
         BIGINT duration_seconds
     }
+    kpi_mensual_canal {
+        VARCHAR anio_mes
+        VARCHAR canal
+        BIGINT pedidos
+        DECIMAL ventas_sin_iva_ni_envio
+        DECIMAL ventas_con_iva_y_envio
+        DOUBLE ticket_promedio_sin_iva
+        DOUBLE ticket_promedio_con_iva
+        BIGINT respuestas
+        BIGINT promotores
+        BIGINT pasivos
+        BIGINT detractores
+        DOUBLE nps
+    }
     kpi_nps {
         VARCHAR anio_mes
         VARCHAR canal
@@ -112,6 +126,15 @@ erDiagram
         BIGINT pasivos
         BIGINT detractores
         DOUBLE nps
+    }
+    kpi_productos_provincia {
+        VARCHAR anio_mes
+        VARCHAR canal
+        VARCHAR provincia
+        VARCHAR producto
+        VARCHAR categoria
+        HUGEINT unidades
+        DECIMAL ventas
     }
     kpi_ranking_productos {
         VARCHAR anio_mes
