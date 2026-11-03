@@ -57,8 +57,6 @@ Como todo se reconstruye desde cero, correrlo dos veces seguidas produce archivo
 
 ## 3. Modelo de datos
 
-Es un modelo en **constelación**: varias tablas de hechos que comparten dimensiones. Cada hecho guarda medidas numéricas y apunta a las dimensiones por clave sustituta (`*_key`).
-
 Diagrama del modelo (se genera con `run_sql.py` y también está en [dw/modelo_estrella.md](dw/modelo_estrella.md)):
 
 ```mermaid
