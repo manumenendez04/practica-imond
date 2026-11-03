@@ -16,10 +16,11 @@ Este repositorio transforma los datos de origen de EcoBottle AR (13 tablas CSV) 
 raw/               datos de origen (un CSV por tabla). No se modifican.
 sql/
   01_dimensiones.sql   crea las 6 dimensiones
-  02_hechos.sql        crea las 4 tablas de hechos
+  02_hechos.sql        crea las 6 tablas de hechos
   03_consultas.sql     calcula los KPI (una tabla por KPI)
 run_sql.py         ejecuta los SQL en orden y arma el data warehouse
 dw/                salida: un CSV por tabla creada + modelo_estrella.md
+assets/            diagrama del modelo y captura del tablero
 docs/              copia de la guía original de la cátedra
 ```
 
@@ -77,6 +78,8 @@ Es un modelo en **constelación**: varias tablas de hechos que comparten dimensi
 | `fact_sales_order_item` | **una línea de pedido** (un producto dentro de un pedido) | 14.573 |
 | `fact_web_session` | **una sesión web** | 100.363 |
 | `fact_nps_response` | **una respuesta a la encuesta NPS** | 3.083 |
+| `fact_payment` | **un pago** de un pedido | 11.969 |
+| `fact_shipment` | **un envío** de un pedido | 7.009 |
 
 Cada hecho conserva **todas** las filas de su tabla de origen: no se filtra ni se pierde nada al cargarlo. Los filtros de negocio (por ejemplo, qué estados cuentan como venta) se aplican al calcular los KPI, no al cargar el hecho.
 
@@ -89,7 +92,7 @@ Cada hecho conserva **todas** las filas de su tabla de origen: no se filtra ni s
 - **Valores desconocidos:** los `LEFT JOIN` con `COALESCE(key, -1)` asignan la fila `-1` cuando no hay dato (pedidos online sin tienda, sesiones y encuestas anónimas). Así ninguna fila se pierde en el cruce.
 - **Aplanado de jerarquías:** categoría y familia quedan dentro de `dim_product`; provincia queda dentro de `dim_location`.
 - **Tipos:** los montos se castean a `DECIMAL(12,2)` para evitar errores de redondeo de punto flotante.
-- **Medidas derivadas:** `duration_seconds` (diferencia entre fin e inicio de la sesión) y `nps_category` (PROMOTER 9–10, PASSIVE 7–8, DETRACTOR 0–6).
+- **Medidas derivadas:** `duration_seconds` (diferencia entre fin e inicio de la sesión), `shipping_days` (días entre el despacho y la entrega), `delivery_days` (días entre el pedido y la entrega) y `nps_category` (PROMOTER 9–10, PASSIVE 7–8, DETRACTOR 0–6).
 - **Integridad:** todas las claves foráneas están declaradas con `REFERENCES`, y DuckDB las valida al cargar.
 
 ## 4. Supuestos y decisiones
@@ -102,7 +105,7 @@ Cada hecho conserva **todas** las filas de su tabla de origen: no se filtra ni s
 - **Moneda y fechas:** montos en pesos argentinos, fechas en hora de Argentina. Los precios de lista no incluyen IVA.
 - **Foto de los datos:** corresponden al 30/09/2025 a las 23:59:59.
 - **Medidas no aditivas:** NPS, ticket promedio y usuarios distintos no se pueden sumar ni promediar entre períodos. Por eso los KPI guardan también los conteos que los componen (promotores, detractores, pedidos, etc.) y los usuarios activos mensuales se calculan directamente sobre las sesiones del mes, no sumando los diarios.
-- **Pagos y envíos:** las tablas `payment` y `shipment` están en `raw/` pero no se modelaron como hechos.
+- **Pagos y envíos:** se modelan como hechos (`fact_payment` y `fact_shipment`). Ambos guardan la fecha del pedido en `date_key` y reutilizan las dimensiones de canal y ubicación (la provincia del envío sale de `shipping_address_id`). Los tiempos de entrega se calculan solo para envíos con estado `DELIVERED` (6.856 de 7.009); el resto no tiene `delivered_at`.
 
 ### Controles realizados
 
@@ -124,6 +127,12 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 | `kpi_ranking_productos` | Unidades y ventas (`line_total`) por producto con `RANK()` | mes y canal | 84 |
 | `kpi_mensual_canal` | Une `kpi_ventas_mensual` con `kpi_nps`: ventas, ticket promedio y NPS en una sola tabla, para que el tablero no tenga que combinar datos | mes y canal | 42 |
 | `kpi_productos_provincia` | Unidades y ventas (`line_total`) por producto, con su categoría. Solo PAID y FULFILLED | mes, canal, provincia y producto | 336 |
+| `kpi_ventas_mensual` | Ventas y ticket promedio (con y sin IVA y envío). Solo PAID y FULFILLED | mes y canal | 42 |
+| `kpi_ventas_provincia` | Ventas y ticket promedio (con y sin IVA y envío) de todo el período. Solo PAID y FULFILLED | provincia | 4 |
+| `kpi_ventas_total` | Ventas y ticket promedio (con y sin IVA y envío) de todo el período. Solo PAID y FULFILLED | total general | 1 |
+| `kpi_nps_total` | NPS de todo el período, con los conteos que lo componen | total general | 1 |
+| `kpi_usuarios_activos_total` | Clientes distintos con sesión en todo el período, sesiones anónimas y su suma | total general | 1 |
+| `kpi_entregas_provincia` | Días promedio de despacho a entrega y de pedido a entrega, solo envíos `DELIVERED` | provincia | 4 |
 
 ## 6. Diccionario de datos
 
@@ -160,6 +169,10 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 
 **fact_nps_response** (una respuesta): `nps_id` (PK), `date_key`, `customer_key`, `channel_key`, `score` (0 a 10), `nps_category` (PROMOTER / PASSIVE / DETRACTOR).
 
+**fact_payment** (un pago): `payment_id` (PK), `order_id` (FK al pedido), `date_key` (fecha del pedido), `channel_key`, `method` (CASH / CARD / TRANSFER / GATEWAY), `status` (PENDING / PAID / FAILED / REFUNDED), `amount`, `paid_at` (vacío si no se pagó) y `transaction_ref`.
+
+**fact_shipment** (un envío): `shipment_id` (PK), `order_id` (FK al pedido), `date_key` (fecha del pedido), `channel_key`, `location_key` (provincia de entrega), `carrier`, `tracking_number`, `status` (READY / SHIPPED / DELIVERED / CANCELLED), `shipped_at`, `delivered_at` y las medidas `shipping_days` y `delivery_days`, vacías si el envío no se entregó.
+
 ### Tablas de KPI
 
 | Tabla | Columnas |
@@ -171,6 +184,12 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 | `kpi_ranking_productos` | `anio_mes`, `canal`, `producto`, `categoria`, `unidades`, `ventas`, `ranking` |
 | `kpi_mensual_canal` | `anio_mes`, `canal`, `pedidos`, `ventas_sin_iva_ni_envio`, `ventas_con_iva_y_envio`, `ticket_promedio_sin_iva`, `ticket_promedio_con_iva`, `respuestas`, `promotores`, `pasivos`, `detractores`, `nps` |
 | `kpi_productos_provincia` | `anio_mes`, `canal`, `provincia`, `producto`, `categoria`, `unidades`, `ventas` |
+| `kpi_ventas_mensual` | `anio_mes`, `canal`, `pedidos`, `ventas_sin_iva_ni_envio`, `ventas_con_iva_y_envio`, `ticket_promedio_sin_iva`, `ticket_promedio_con_iva` |
+| `kpi_ventas_provincia` | `provincia`, `pedidos`, `ventas_sin_iva_ni_envio`, `ventas_con_iva_y_envio`, `ticket_promedio_sin_iva`, `ticket_promedio_con_iva` |
+| `kpi_ventas_total` | `pedidos`, `ventas_sin_iva_ni_envio`, `ventas_con_iva_y_envio`, `ticket_promedio_sin_iva`, `ticket_promedio_con_iva` |
+| `kpi_nps_total` | `respuestas`, `promotores`, `pasivos`, `detractores`, `nps` |
+| `kpi_usuarios_activos_total` | `usuarios_activos`, `sesiones_anonimas`, `usuarios_activos_con_anonimos`, `sesiones` |
+| `kpi_entregas_provincia` | `provincia`, `envios_entregados`, `dias_envio_promedio`, `dias_entrega_promedio` |
 
 ### Tablas de origen (`raw/`)
 
@@ -192,11 +211,179 @@ Se calculan en `sql/03_consultas.sql` con `CREATE TABLE ... AS SELECT`, así que
 
 ## 7. Tablero
 
- El tablero está hecho en **Looker Studio** y se alimenta de los CSV de `dw/`: no calcula  ningún KPI, solo los muestra. Cada gráfico lee una tabla KPI ya calculada en SQL.
- 
- Nota: para ver el tablero se requiere una cuenta de Google con la sesión iniciada.
+El tablero está hecho en **Looker Studio** y se alimenta de los CSV de `dw/`: no calcula ningún KPI, solo los muestra. Cada gráfico lee una tabla KPI ya calculada en SQL.
 
- Enlace al tablero: https://datastudio.google.com/reporting/23f961c9-28ad-49e0-81b3-94bb45f54caf
- 
+Enlace al tablero: https://datastudio.google.com/reporting/23f961c9-28ad-49e0-81b3-94bb45f54caf
+
+Nota: para ver el tablero se requiere una cuenta de Google con la sesión iniciada.
+
+Vistas del tablero (filtros por canal, mes, provincia y producto):
+
+| Vista | Tabla KPI |
+|---|---|
+| Ventas totales | `kpi_ventas_total` |
+| Usuarios activos | `kpi_usuarios_activos_total` |
+| NPS | `kpi_nps_total` |
+| Ticket promedio | `kpi_ventas` |
+| Ventas por mes y canal | `kpi_mensual_canal` |
+| Ventas por provincia | `kpi_ventas_provincia` |
+| Ticket promedio por mes y canal | `kpi_mensual_canal` |
+| Usuarios activos por mes | `kpi_usuarios_activos_mensual` |
+| NPS por mes y canal | `kpi_mensual_canal` |
+| Ranking de productos | `kpi_productos_provincia` |
 
 ![Captura del tablero](assets/tablero.png)
+
+## 8. Consultas clave
+
+Cada KPI de la consigna sale de una consulta de `sql/03_consultas.sql`:
+
+| KPI | Tabla | Consulta |
+|---|---|---|
+| Ventas y Ticket Promedio | `kpi_ventas` | 1 |
+| Usuarios Activos | `kpi_usuarios_activos_mensual` | 2 |
+| NPS | `kpi_nps` | 3 |
+| Ventas por Provincia | `kpi_ventas_provincia` | 4 |
+| Ranking mensual por Producto | `kpi_ranking_productos` | 5 |
+| Tiempos de entrega por provincia | `kpi_entregas_provincia` | 6 |
+
+**1. Ventas y Ticket Promedio**
+
+```sql
+CREATE TABLE kpi_ventas AS
+SELECT
+    d.fecha,
+    d.anio_mes,
+    ch.name     AS canal,
+    l.province  AS provincia,
+    COUNT(*)    AS pedidos,
+    SUM(f.subtotal)     AS ventas_sin_iva_ni_envio,
+    SUM(f.total_amount) AS ventas_con_iva_y_envio,
+    ROUND(SUM(f.subtotal)     / COUNT(*), 2) AS ticket_promedio_sin_iva,
+    ROUND(SUM(f.total_amount) / COUNT(*), 2) AS ticket_promedio_con_iva
+FROM fact_sales_order AS f
+JOIN dim_date     AS d  ON d.date_key     = f.date_key
+JOIN dim_channel  AS ch ON ch.channel_key = f.channel_key
+JOIN dim_location AS l  ON l.location_key = f.location_key
+WHERE f.status IN ('PAID', 'FULFILLED')
+GROUP BY d.fecha, d.anio_mes, ch.name, l.province
+ORDER BY d.fecha, ch.name, l.province;
+```
+
+**2. Usuarios Activos**
+
+```sql
+CREATE TABLE kpi_usuarios_activos_mensual AS
+SELECT
+    d.anio_mes,
+    COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END) AS usuarios_activos,
+    COUNT(*) FILTER (WHERE w.customer_key = -1)                            AS sesiones_anonimas,
+    COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END)
+      + COUNT(*) FILTER (WHERE w.customer_key = -1)                        AS usuarios_activos_con_anonimos,
+    COUNT(*)                                                               AS sesiones
+FROM fact_web_session w
+JOIN dim_date d ON d.date_key = w.date_key
+GROUP BY d.anio_mes
+ORDER BY d.anio_mes;
+```
+
+**3. NPS**
+
+```sql
+CREATE TABLE kpi_nps AS
+SELECT
+    d.anio_mes,
+    ch.name AS canal,
+    COUNT(*) AS respuestas,
+    COUNT(*) FILTER (WHERE n.nps_category = 'PROMOTER')  AS promotores,
+    COUNT(*) FILTER (WHERE n.nps_category = 'PASSIVE')   AS pasivos,
+    COUNT(*) FILTER (WHERE n.nps_category = 'DETRACTOR') AS detractores,
+    ROUND(100.0 * (
+        COUNT(*) FILTER (WHERE n.nps_category = 'PROMOTER')
+      - COUNT(*) FILTER (WHERE n.nps_category = 'DETRACTOR')
+    ) / COUNT(*), 1) AS nps
+FROM fact_nps_response AS n
+JOIN dim_date    AS d  ON d.date_key     = n.date_key
+JOIN dim_channel AS ch ON ch.channel_key = n.channel_key
+GROUP BY d.anio_mes, ch.name
+ORDER BY d.anio_mes, ch.name;
+```
+
+**4. Ventas por Provincia**
+
+```sql
+CREATE TABLE kpi_ventas_provincia AS
+SELECT
+    l.province  AS provincia,
+    COUNT(*)    AS pedidos,
+    SUM(f.subtotal)     AS ventas_sin_iva_ni_envio,
+    SUM(f.total_amount) AS ventas_con_iva_y_envio,
+    ROUND(SUM(f.subtotal)     / COUNT(*), 2) AS ticket_promedio_sin_iva,
+    ROUND(SUM(f.total_amount) / COUNT(*), 2) AS ticket_promedio_con_iva
+FROM fact_sales_order AS f
+JOIN dim_location AS l ON l.location_key = f.location_key
+WHERE f.status IN ('PAID', 'FULFILLED')
+GROUP BY l.province
+ORDER BY l.province;
+```
+
+**5. Ranking mensual por Producto**
+
+```sql
+CREATE TABLE kpi_ranking_productos AS
+SELECT
+    d.anio_mes,
+    ch.name     AS canal,
+    p.name      AS producto,
+    p.category  AS categoria,
+    SUM(i.quantity)   AS unidades,
+    SUM(i.line_total) AS ventas,
+    RANK() OVER (
+        PARTITION BY d.anio_mes, ch.name
+        ORDER BY SUM(i.line_total) DESC
+    ) AS ranking
+FROM fact_sales_order_item AS i
+JOIN dim_date    AS d  ON d.date_key     = i.date_key
+JOIN dim_product AS p  ON p.product_key  = i.product_key
+JOIN dim_channel AS ch ON ch.channel_key = i.channel_key
+WHERE i.status IN ('PAID', 'FULFILLED')
+GROUP BY d.anio_mes, ch.name, p.name, p.category
+ORDER BY d.anio_mes, ch.name, ranking, p.name;
+```
+
+**6. Tiempos de entrega por provincia**
+
+```sql
+CREATE TABLE kpi_entregas_provincia AS
+SELECT
+    l.province AS provincia,
+    COUNT(*)   AS envios_entregados,
+    ROUND(AVG(s.shipping_days), 2) AS dias_envio_promedio,
+    ROUND(AVG(s.delivery_days), 2) AS dias_entrega_promedio
+FROM fact_shipment AS s
+JOIN dim_location  AS l ON l.location_key = s.location_key
+WHERE s.status = 'DELIVERED'
+GROUP BY l.province
+ORDER BY l.province;
+```
+
+## 9. Hallazgos
+
+Sobre la meta del trimestre (crecer 15 % las ventas en Córdoba y reducir los tiempos de entrega en Mendoza):
+
+- **Córdoba:** en el tercer trimestre de 2025 vendió $12,3 M contra $9,8 M del mismo trimestre de 2024 (**+25,3 %**). Acumulado de enero a septiembre, 2025 está **+14,4 %** sobre 2024, a menos de un punto de la meta.
+- **Mendoza:** el tiempo de pedido a entrega bajó de 8,1 días en el tercer trimestre de 2024 a 5,3 días en el tercer trimestre de 2025 (**−35 %**). Aun así, el promedio general (5,7 días) sigue lejos de Buenos Aires (4,0 días); Córdoba (6,0) y Santa Fe (5,8) están en el mismo nivel que Mendoza.
+- **NPS:** el NPS total es **30,0**. Tiendas Físicas (40,9) supera a Tienda Online (24,0), y el NPS online llegó a −26,5 en agosto de 2024. Ese mismo trimestre es el de mayor demora de entrega (entre 6,5 y 8,1 días según la provincia), por lo que las demoras logísticas son una causa posible, aunque estos datos no permiten confirmarlo.
+- **Canal:** Tienda Online concentra el 59 % de las ventas ($227,0 M de $382,4 M).
+- **Productos:** Sport B Bottle vende menos unidades que Classic A Bottle (11.047 contra 12.498) pero factura más ($162,7 M contra $147,2 M), por su precio de lista más alto.
+
+### Ideas para ampliar el tablero
+
+Con los hechos y KPI que ya están en el DW se podrían sumar estas vistas, sin cambiar las dimensiones:
+
+- **Tiempo de entrega por provincia:** barras con `dias_entrega_promedio` de `kpi_entregas_provincia`, para seguir la meta de Mendoza.
+- **Meta de Córdoba:** tarjeta con la variación de ventas del trimestre contra el mismo trimestre del año anterior, con el objetivo de +15 %.
+- **NPS vs demora de entrega:** comparar la serie mensual de NPS con los días de entrega, para ver si las demoras explican las caídas del canal online.
+- **Pagos:** tasa de pagos rechazados por método y canal, a partir de `fact_payment`.
+- **Ranking mensual por producto:** barras agrupadas por mes y producto, a partir de una consulta mensual sobre `fact_sales_order_item`.
+
