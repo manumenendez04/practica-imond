@@ -5,19 +5,26 @@ Generado por `run_sql.py` a partir de las tablas de `warehouse.duckdb`.
 ```mermaid
 erDiagram
     dim_channel ||--o{ fact_nps_response : "channel_key"
+    dim_channel ||--o{ fact_payment : "channel_key"
     dim_channel ||--o{ fact_sales_order : "channel_key"
     dim_channel ||--o{ fact_sales_order_item : "channel_key"
+    dim_channel ||--o{ fact_shipment : "channel_key"
     dim_customer ||--o{ fact_nps_response : "customer_key"
     dim_customer ||--o{ fact_sales_order : "customer_key"
     dim_customer ||--o{ fact_web_session : "customer_key"
     dim_date ||--o{ fact_nps_response : "date_key"
+    dim_date ||--o{ fact_payment : "date_key"
     dim_date ||--o{ fact_sales_order : "date_key"
     dim_date ||--o{ fact_sales_order_item : "date_key"
+    dim_date ||--o{ fact_shipment : "date_key"
     dim_date ||--o{ fact_web_session : "date_key"
     dim_location ||--o{ fact_sales_order : "location_key"
+    dim_location ||--o{ fact_shipment : "location_key"
     dim_product ||--o{ fact_sales_order_item : "product_key"
     dim_store ||--o{ fact_sales_order : "store_key"
+    fact_sales_order ||--o{ fact_payment : "order_id"
     fact_sales_order ||--o{ fact_sales_order_item : "order_id"
+    fact_sales_order ||--o{ fact_shipment : "order_id"
     dim_channel {
         INTEGER channel_key PK
         INTEGER channel_id
@@ -71,6 +78,17 @@ erDiagram
         INTEGER score
         VARCHAR nps_category
     }
+    fact_payment {
+        BIGINT payment_id PK
+        BIGINT order_id FK
+        INTEGER date_key FK
+        INTEGER channel_key FK
+        VARCHAR method
+        VARCHAR status
+        DECIMAL amount
+        TIMESTAMP paid_at
+        VARCHAR transaction_ref
+    }
     fact_sales_order {
         BIGINT order_id PK
         INTEGER date_key FK
@@ -96,6 +114,20 @@ erDiagram
         DECIMAL discount_amount
         DECIMAL line_total
     }
+    fact_shipment {
+        BIGINT shipment_id PK
+        BIGINT order_id FK
+        INTEGER date_key FK
+        INTEGER channel_key FK
+        INTEGER location_key FK
+        VARCHAR carrier
+        VARCHAR tracking_number
+        VARCHAR status
+        TIMESTAMP shipped_at
+        TIMESTAMP delivered_at
+        DOUBLE shipping_days
+        DOUBLE delivery_days
+    }
     fact_web_session {
         BIGINT session_id PK
         INTEGER date_key FK
@@ -103,6 +135,12 @@ erDiagram
         VARCHAR source
         VARCHAR device
         BIGINT duration_seconds
+    }
+    kpi_entregas_provincia {
+        VARCHAR provincia
+        BIGINT envios_entregados
+        DOUBLE dias_envio_promedio
+        DOUBLE dias_entrega_promedio
     }
     kpi_mensual_canal {
         VARCHAR anio_mes
@@ -121,6 +159,13 @@ erDiagram
     kpi_nps {
         VARCHAR anio_mes
         VARCHAR canal
+        BIGINT respuestas
+        BIGINT promotores
+        BIGINT pasivos
+        BIGINT detractores
+        DOUBLE nps
+    }
+    kpi_nps_total {
         BIGINT respuestas
         BIGINT promotores
         BIGINT pasivos
@@ -155,6 +200,12 @@ erDiagram
     }
     kpi_usuarios_activos_mensual {
         VARCHAR anio_mes
+        BIGINT usuarios_activos
+        BIGINT sesiones_anonimas
+        BIGINT usuarios_activos_con_anonimos
+        BIGINT sesiones
+    }
+    kpi_usuarios_activos_total {
         BIGINT usuarios_activos
         BIGINT sesiones_anonimas
         BIGINT usuarios_activos_con_anonimos

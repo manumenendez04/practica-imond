@@ -151,3 +151,69 @@ SELECT
 FROM raw.nps_response AS n
 LEFT JOIN dim_customer AS c  ON c.customer_id = n.customer_id
 LEFT JOIN dim_channel  AS ch ON ch.channel_id = n.channel_id;
+
+
+
+-- fact_payment: grano = un pago de un pedido
+CREATE TABLE fact_payment (
+    payment_id      BIGINT PRIMARY KEY,
+    order_id        BIGINT NOT NULL REFERENCES fact_sales_order(order_id),
+    date_key        INTEGER NOT NULL REFERENCES dim_date(date_key),
+    channel_key     INTEGER NOT NULL REFERENCES dim_channel(channel_key),
+    method          VARCHAR NOT NULL,
+    status          VARCHAR NOT NULL,
+    amount          DECIMAL(12, 2),
+    paid_at         TIMESTAMP,
+    transaction_ref VARCHAR
+);
+
+INSERT INTO fact_payment
+SELECT
+    p.payment_id,
+    p.order_id,
+    CAST(strftime(o.order_date, '%Y%m%d') AS INTEGER) AS date_key,
+    ch.channel_key,
+    p.method,
+    p.status,
+    CAST(p.amount AS DECIMAL(12, 2)),
+    p.paid_at,
+    p.transaction_ref
+FROM raw.payment AS p
+LEFT JOIN raw.sales_order AS o  ON o.order_id    = p.order_id
+LEFT JOIN dim_channel     AS ch ON ch.channel_id = o.channel_id;
+
+
+-- fact_shipment: grano = un envio de un pedido
+CREATE TABLE fact_shipment (
+    shipment_id     BIGINT PRIMARY KEY,
+    order_id        BIGINT NOT NULL REFERENCES fact_sales_order(order_id),
+    date_key        INTEGER NOT NULL REFERENCES dim_date(date_key),
+    channel_key     INTEGER NOT NULL REFERENCES dim_channel(channel_key),
+    location_key    INTEGER NOT NULL REFERENCES dim_location(location_key),
+    carrier         VARCHAR,
+    tracking_number VARCHAR,
+    status          VARCHAR NOT NULL,
+    shipped_at      TIMESTAMP,
+    delivered_at    TIMESTAMP,
+    shipping_days   DOUBLE,
+    delivery_days   DOUBLE
+);
+
+INSERT INTO fact_shipment
+SELECT
+    s.shipment_id,
+    s.order_id,
+    CAST(strftime(o.order_date, '%Y%m%d') AS INTEGER) AS date_key,
+    ch.channel_key,
+    COALESCE(l.location_key, -1)                       AS location_key,
+    s.carrier,
+    s.tracking_number,
+    s.status,
+    s.shipped_at,
+    s.delivered_at,
+    date_diff('second', s.shipped_at, s.delivered_at) / 86400.0 AS shipping_days,
+    date_diff('second', o.order_date, s.delivered_at) / 86400.0 AS delivery_days
+FROM raw.shipment AS s
+LEFT JOIN raw.sales_order AS o  ON o.order_id    = s.order_id
+LEFT JOIN dim_channel     AS ch ON ch.channel_id = o.channel_id
+LEFT JOIN dim_location    AS l  ON l.address_id  = o.shipping_address_id;

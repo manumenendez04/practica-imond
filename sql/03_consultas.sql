@@ -203,3 +203,47 @@ JOIN dim_location     AS l  ON l.location_key = f.location_key
 WHERE i.status IN ('PAID', 'FULFILLED')
 GROUP BY d.anio_mes, ch.name, l.province, p.name, p.category
 ORDER BY d.anio_mes, ch.name, l.province, p.name;
+
+
+
+-- KPI: NPS, total general
+CREATE TABLE kpi_nps_total AS
+SELECT
+    COUNT(*) AS respuestas,
+    COUNT(*) FILTER (WHERE n.nps_category = 'PROMOTER')  AS promotores,
+    COUNT(*) FILTER (WHERE n.nps_category = 'PASSIVE')   AS pasivos,
+    COUNT(*) FILTER (WHERE n.nps_category = 'DETRACTOR') AS detractores,
+    ROUND(100.0 * (
+        COUNT(*) FILTER (WHERE n.nps_category = 'PROMOTER')
+      - COUNT(*) FILTER (WHERE n.nps_category = 'DETRACTOR')
+    ) / COUNT(*), 1) AS nps
+FROM fact_nps_response AS n;
+
+
+
+
+-- KPI: Usuarios Activos, total del periodo
+CREATE TABLE kpi_usuarios_activos_total AS
+SELECT
+    COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END) AS usuarios_activos,
+    COUNT(*) FILTER (WHERE w.customer_key = -1)                            AS sesiones_anonimas,
+    COUNT(DISTINCT CASE WHEN w.customer_key <> -1 THEN w.customer_key END)
+      + COUNT(*) FILTER (WHERE w.customer_key = -1)                        AS usuarios_activos_con_anonimos,
+    COUNT(*)                                                               AS sesiones
+FROM fact_web_session AS w;
+
+
+
+
+-- KPI: Tiempos de entrega por provincia (solo envios entregados)
+CREATE TABLE kpi_entregas_provincia AS
+SELECT
+    l.province AS provincia,
+    COUNT(*)   AS envios_entregados,
+    ROUND(AVG(s.shipping_days), 2) AS dias_envio_promedio,
+    ROUND(AVG(s.delivery_days), 2) AS dias_entrega_promedio
+FROM fact_shipment AS s
+JOIN dim_location  AS l ON l.location_key = s.location_key
+WHERE s.status = 'DELIVERED'
+GROUP BY l.province
+ORDER BY l.province;
